@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Item Searcher & Command Generator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for pixel and clean styling -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #0f1115;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(16, 185, 129, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.05) 0%, transparent 40%);
+        }
+        .mc-font {
+            font-family: 'Courier Prime', monospace;
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #10b981;
+        }
+        /* Item card glow transitions */
+        .item-card {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .item-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 20px -8px rgba(16, 185, 129, 0.3);
+        }
+        /* Active pulse for copying */
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .copied-pop {
+            animation: pop 0.3s ease-in-out;
+        }
+        /* Crisp pixel art rendering for Minecraft icons */
+        .pixelated {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            -ms-interpolation-mode: nearest-neighbor;
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col pb-32">
+
+    <!-- Toast Notification Banner -->
+    <div id="toast-container" class="fixed top-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Main Navigation / Header -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <!-- SVG Minecraft-like Grass Block Logo -->
+                <div class="w-10 h-10 relative">
+                    <svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]">
+                        <path d="M50,10 L90,30 L90,70 L50,90 L10,70 L10,30 Z" fill="#78350f" />
+                        <path d="M50,10 L90,30 L50,50 L10,30 Z" fill="#15803d" />
+                        <path d="M10,30 L50,50 L50,90 L10,70 Z" fill="#451a03" />
+                        <path d="M50,50 L90,30 L90,70 L50,90 Z" fill="#541e04" />
+                        <!-- Pixelated Grass details -->
+                        <path d="M10,30 L25,37 L30,30 L45,37 L50,30 L65,37 L70,30 L90,30 L90,42 L80,38 L70,45 L50,38 L30,45 L10,36 Z" fill="#16a34a" opacity="0.9"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-indigo-400 bg-clip-text text-transparent">
+                        Minecraft Item Index - 1.21.4+ Updated
+                    </h1>
+                    <p class="text-xs text-slate-400">Search, discover, and generate commands with live textures</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <!-- Retro sound toggle -->
+                <button id="sound-toggle" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition border border-slate-700 text-xs font-semibold">
+                    <span id="sound-icon">🔊</span>
+                    <span>Sounds: <span id="sound-status" class="text-emerald-400">ON</span></span>
+                </button>
+                <div class="text-xs text-slate-400 hidden sm:block">
+                    Total Items: <span id="total-count" class="font-bold text-emerald-400 mc-font">0</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left Side: Controls, Search, and Lists (8 Cols on Large Screens) -->
+        <section class="lg:col-span-8 flex flex-col gap-6">
+            
+            <!-- Hero Search Console -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </span>
+                    <input 
+                        type="text" 
+                        id="search-input" 
+                        placeholder="Search items by raw ID (e.g. grass_block) or display name (e.g. Grass Block)..." 
+                        class="block w-full pl-12 pr-4 py-4 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all shadow-inner text-lg"
+                        autocomplete="off"
+                    >
+                    <button id="clear-search" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-500 hover:text-slate-300 hidden">
+                        ✕
+                    </button>
+                </div>
+
+                <!-- Custom Filter Tabs (Dynamic Quick Filters) -->
+                <div class="mt-5 flex flex-wrap gap-2 items-center">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-500 mr-2">Quick Filters:</span>
+                    <button class="filter-tab active px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 transition" data-filter="all">
+                        All Items
+                    </button>
+                    <button class="filter-tab px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 transition" data-filter="blocks">
+                        Blocks
+                    </button>
+                    <button class="filter-tab px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 transition" data-filter="tools">
+                        Tools/Weapons
+                    </button>
+                    <button class="filter-tab px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 transition" data-filter="armor">
+                        Armor
+                    </button>
+                    <button class="filter-tab px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 transition" data-filter="colored">
+                        Stained/Colored/Bundles
+                    </button>
+                    <button class="filter-tab px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 transition" data-filter="eggs">
+                        Spawn Eggs
+                    </button>
+                    <button class="filter-tab px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 transition" data-filter="pottery">
+                        Pottery Sherds
+                    </button>
+                </div>
+            </div>
+
+            <!-- List Summary Counter -->
+            <div class="flex items-center justify-between text-sm text-slate-400 px-2">
+                <div>
+                    Showing <span id="current-count" class="font-bold text-slate-200">0</span> of <span id="match-count" class="font-bold text-slate-200">0</span> matches
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="sort-select" class="text-xs font-semibold text-slate-500 uppercase">Sort:</label>
+                    <select id="sort-select" class="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-lg px-2.5 py-1 focus:ring-emerald-500 focus:border-emerald-500">
+                        <option value="az">A-Z Alphabetical</option>
+                        <option value="za">Z-A Reverse</option>
+                        <option value="length">Name Length</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Items Search Results Grid -->
+            <div id="items-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 min-h-[400px]">
+                <!-- Item cards will be rendered dynamically here -->
+            </div>
+
+            <!-- Pagination/Load More Control -->
+            <div class="flex justify-center mt-4">
+                <button id="load-more-btn" class="px-6 py-3 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 text-slate-200 font-semibold text-sm transition shadow-md hidden">
+                    Load More Items
+                </button>
+            </div>
+
+        </section>
+
+        <!-- Right Side: Live Interactive Panel & Inspector (4 Cols on Large Screens) -->
+        <aside class="lg:col-span-4 flex flex-col gap-6">
+
+            <!-- Selected Item Inspector & /give Command Generator -->
+            <div id="inspector-panel" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl sticky top-28">
+                <div id="inspector-placeholder" class="py-12 text-center text-slate-500">
+                    <div class="text-5xl mb-4">⛏️</div>
+                    <p class="font-medium text-slate-300">No Item Selected</p>
+                    <p class="text-xs px-6 mt-2">Click any item in the search list to inspect it, copy its exact raw ID, or generate precise Minecraft in-game console commands.</p>
+                </div>
+
+                <div id="inspector-content" class="hidden">
+                    <!-- Dynamic Header badge and item details -->
+                    <div class="flex items-start justify-between gap-4 border-b border-slate-800 pb-5">
+                        <div class="min-w-0 flex-1">
+                            <span id="inspect-tag" class="inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-2">BLOCK</span>
+                            <h2 id="inspect-display-name" class="text-xl font-extrabold text-slate-100 tracking-tight leading-tight truncate">Grass Block</h2>
+                            <p id="inspect-raw-id" class="text-xs text-emerald-400 mc-font mt-1 break-all bg-slate-950/80 px-2 py-1 rounded border border-slate-800/80 inline-block"></p>
+                        </div>
+                        <!-- Virtual Render Box -->
+                        <div id="inspect-visual-box" class="w-16 h-16 rounded-xl bg-slate-950 flex items-center justify-center border border-slate-800 shadow-inner relative overflow-hidden flex-shrink-0">
+                            <!-- Image gets rendered here -->
+                        </div>
+                    </div>
+
+                    <!-- Custom Give Command Generator Block -->
+                    <div class="mt-5">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Command Generator</h3>
+                            <span class="text-[10px] text-emerald-400 font-semibold mc-font">Minecraft Java / Bedrock</span>
+                        </div>
+
+                        <!-- Parameters Form -->
+                        <div class="space-y-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800/50">
+                            <!-- Target selector -->
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Target Player</label>
+                                <div class="grid grid-cols-4 gap-1">
+                                    <button class="target-btn active text-center text-xs py-1 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-medium" data-target="@p">@p</button>
+                                    <button class="target-btn text-center text-xs py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 font-medium" data-target="@s">@s</button>
+                                    <button class="target-btn text-center text-xs py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 font-medium" data-target="@a">@a</button>
+                                    <button id="target-custom-trigger" class="text-center text-xs py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 font-medium">Custom</button>
+                                </div>
+                                <input type="text" id="target-custom-input" placeholder="Enter username..." class="hidden w-full mt-2 bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500">
+                            </div>
+
+                            <!-- Quantity slider -->
+                            <div>
+                                <div class="flex justify-between items-center mb-1.5">
+                                    <label class="block text-xs font-bold text-slate-400 uppercase">Stack Count</label>
+                                    <span id="quantity-badge" class="text-xs font-bold text-emerald-400 mc-font">64</span>
+                                </div>
+                                <input type="range" id="quantity-slider" min="1" max="99" value="64" class="w-full accent-emerald-500 bg-slate-800 rounded-lg appearance-none h-1 cursor-pointer">
+                                <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                                    <span>1 (Single)</span>
+                                    <span>16</span>
+                                    <span>64 (Stack)</span>
+                                    <span>99 (Max)</span>
+                                </div>
+                            </div>
+
+                            <!-- Optional Command Toggles -->
+                            <div class="pt-2 border-t border-slate-800/60">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="nbt-custom-name" class="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700">
+                                    <span class="text-xs text-slate-300">Add custom lore & visual glow (NBT)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Resulting Command Display -->
+                        <div class="mt-4">
+                            <span class="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Constructed Command</span>
+                            <div class="relative group">
+                                <pre id="command-output" class="w-full bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-medium text-slate-200 overflow-x-auto select-all mc-font whitespace-pre-wrap pr-10 min-h-[44px]">/give @p grass_block 64</pre>
+                                <button id="copy-command-btn" class="absolute top-2 right-2 p-1.5 rounded-md bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-400 hover:text-emerald-400 transition" title="Copy Command">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Interaction Buttons -->
+                        <div class="grid grid-cols-2 gap-3 mt-4">
+                            <button id="copy-id-only-btn" class="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-xs font-bold text-slate-200 transition-all flex items-center justify-center gap-1.5">
+                                🔑 Copy ID Only
+                            </button>
+                            <button id="add-to-hotbar-btn" class="py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/10 flex items-center justify-center gap-1.5">
+                                📥 Pin to Hotbar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hotbar / Quick Bin -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        🎒 Saved Hotbar
+                    </h3>
+                    <button id="clear-hotbar-btn" class="text-[10px] text-slate-500 hover:text-rose-400 font-bold uppercase transition">
+                        Clear All
+                    </button>
+                </div>
+                <!-- hotbar cells -->
+                <div id="hotbar-slots" class="grid grid-cols-9 gap-1.5 bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
+                    <!-- 9 standard Minecraft inventory hotbar slots -->
+                </div>
+                <div class="mt-3 text-center">
+                    <p class="text-[11px] text-slate-500">Pin search items directly to your inventory hotbar to quickly copy multiple commands later!</p>
+                </div>
+            </div>
+
+        </aside>
+    </main>
+
+    <!-- Bottom Action Bar / Instructions Footer -->
+    <footer class="mt-auto border-t border-slate-900 bg-slate-950/80 py-6 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4">
+            <p>Made for Minecraft adventurers and developers. Keep building and coding!</p>
+            <p class="mt-1 text-[10px] text-slate-600">The assets, items, and Minecraft references are property of Mojang Synergies AB.</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript Data and Application Logic -->
+    <script>
+        // --- DATA SECTION: Updated list parsed directly from the new 1.21 file (textfile (5).txt) ---
+        const RAW_MINECRAFT_ITEMS = [
+            "grass_block", "dirt", "farmland", "coarse_dirt", "dirt_path", "rooted_dirt", "podzol", "mycelium", "sand", "red_sand",
+            "gravel", "ice", "packed_ice", "blue_ice", "frosted_ice", "water", "flowing_water", "lava", "flowing_lava", "obsidian",
+            "crying_obsidian", "glass", "tinted_glass", "glass_pane", "red_stained_glass", "orange_stained_glass", "yellow_stained_glass",
+            "lime_stained_glass", "green_stained_glass", "blue_stained_glass", "light_blue_stained_glass", "cyan_stained_glass",
+            "purple_stained_glass", "magenta_stained_glass", "pink_stained_glass", "brown_stained_glass", "light_grey_stained_glass",
+            "grey_stained_glass", "black_stained_glass", "cobblestone", "mossy_cobblestone", "stone", "infested_stone", "infested_cobblestone",
+            "stone_bricks", "infested_stone_bricks", "mossy_stone_bricks", "infested_mossy_stone_bricks", "chiseled_stone_bricks",
+            "infested_chiseled_stone_bricks", "cracked_stone_bricks", "infested_cracked_stone_bricks", "smooth_stone", "andesite",
+            "polished_andesite", "granite", "polished_granite", "diorite", "polished_diorite", "tuff", "deepslate", "infested_deepslate",
+            "cobbled_deepslate", "polished_deepslate", "chiseled_deepslate", "cracked_deepslate_bricks", "cracked_deepslate_tiles",
+            "reinforced_deepslate", "oak_log", "birch_log", "spruce_log", "acacia_log", "mangrove_log", "dark_oak_log", "jungle_log",
+            "cherry_log", "pale_oak_log", "crimson_stem", "warped_stem", "oak_plank", "birch_plank", "spruce_plank", "acacia_plank",
+            "mangrove_plank", "dark_oak_plank", "jungle_plank", "cherry_plank", "pale_oak_plank", "crimson_plank", "warped_plank",
+            "coal_ore", "iron_ore", "gold_ore", "redstone_ore", "lapis_lazuli_ore", "copper_ore", "diamond_ore", "emerald_ore",
+            "deepslate_emerald_ore", "ancient_debris", "deepslate_coal_ore", "deepslate_iron_ore", "deepslate_gold_ore",
+            "deepslate_redstone_ore", "deepslate_lapis_lazuli_ore", "deepslate_copper_ore", "deepslate_diamond_ore", "red_concrete",
+            "orange_concrete", "yellow_concrete", "lime_concrete", "green_concrete", "blue_concrete", "light_blue_concrete",
+            "cyan_concrete", "purple_concrete", "magenta_concrete", "pink_concrete", "brown_concrete", "light_grey_concrete",
+            "grey_concrete", "black_concrete", "red_concrete_powder", "orange_concrete_powder", "yellow_concrete_powder",
+            "lime_concrete_powder", "green_concrete_powder", "blue_concrete_powder", "light_blue_concrete_powder", "cyan_concrete_powder",
+            "purple_concrete_powder", "magenta_concrete_powder", "pink_concrete_powder", "brown_concrete_powder",
+            "light_grey_concrete_powder", "grey_concrete_powder", "black_concrete_powder", "red_wool", "orange_wool", "yellow_wool",
+            "lime_wool", "green_wool", "blue_wool", "light_blue_wool", "cyan_wool", "purple_wool", "magenta_wool", "pink_wool",
+            "brown_wool", "light_grey_wool", "grey_wool", "black_wool", "white_bed", "orange_bed", "magenta_bed", "light_blue_bed",
+            "yellow_bed", "lime_bed", "pink_bed", "gray_bed", "light_gray_bed", "cyan_bed", "purple_bed", "blue_bed", "brown_bed",
+            "green_bed", "red_bed", "black_bed", "white_dye", "orange_dye", "magenta_dye", "light_blue_dye", "yellow_dye", "lime_dye",
+            "pink_dye", "gray_dye", "light_gray_dye", "cyan_dye", "purple_dye", "blue_dye", "brown_dye", "green_dye", "red_dye",
+            "black_dye", "blackstone", "blackstone_slab", "blackstone_stairs", "blackstone_wall", "polished_blackstone",
+            "polished_blackstone_slab", "polished_blackstone_stairs", "polished_blackstone_wall", "polished_blackstone_button",
+            "polished_blackstone_pressure_plate", "chiseled_polished_blackstone", "polished_blackstone_bricks",
+            "polished_blackstone_brick_slab", "polished_blackstone_brick_stairs", "polished_blackstone_brick_wall",
+            "cracked_polished_blackstone_bricks", "gilded_blackstone", "raw_copper", "raw_copper_block", "copper_block",
+            "copper_ingot", "copper_door", "copper_trapdoor", "copper_bulb", "copper_grate", "lightning_rod", "cut_copper",
+            "cut_copper_slab", "cut_copper_stairs", "chiseled_copper", "exposed_copper_block", "weathered_copper_block",
+            "oxidized_copper_block", "waxed_copper_block", "waxed_exposed_copper_block", "waxed_weathered_copper_block",
+            "waxed_oxidized_copper_block", "exposed_cut_copper", "weathered_cut_copper", "oxidized_cut_copper", "waxed_cut_copper",
+            "waxed_exposed_cut_copper", "waxed_weathered_cut_copper", "waxed_oxidized_cut_copper", "oak_leaves", "spruce_leaves",
+            "birch_leaves", "jungle_leaves", "acacia_leaves", "dark_oak_leaves", "mangrove_leaves", "cherry_leaves", "pale_leaves",
+            "azalea_leaves", "flowering_azalea_leaves", "oak_sapling", "spruce_sapling", "birch_sapling", "jungle_sapling",
+            "acacia_sapling", "dark_oak_sapling", "cherry_sapling", "pale_oak_sapling", "azalea", "flowering_azalea", "wooden_sword",
+            "stone_sword", "iron_sword", "golden_sword", "diamond_sword", "netherite_sword", "wooden_pickaxe", "stone_pickaxe",
+            "iron_pickaxe", "golden_pickaxe", "diamond_pickaxe", "netherite_pickaxe", "wooden_axe", "stone_axe", "iron_axe",
+            "golden_axe", "diamond_axe", "netherite_axe", "wooden_shovel", "stone_shovel", "iron_shovel", "golden_shovel",
+            "diamond_shovel", "netherite_shovel", "wooden_hoe", "stone_hoe", "iron_hoe", "golden_hoe", "diamond_hoe", "netherite_hoe",
+            "oak_stairs", "spruce_stairs", "birch_stairs", "jungle_stairs", "acacia_stairs", "dark_oak_stairs", "mangrove_stairs",
+            "cherry_stairs", "pale_oak_stairs", "bamboo_stairs", "bamboo_mosaic_stairs", "crimson_stairs", "warped_stairs",
+            "stone_stairs", "cobblestone_stairs", "mossy_cobblestone_stairs", "stone_brick_stairs", "mossy_stone_brick_stairs",
+            "granite_stairs", "polished_granite_stairs", "diorite_stairs", "polished_diorite_stairs", "andesite_stairs",
+            "polished_andesite_stairs", "cobbled_deepslate_stairs", "polished_deepslate_stairs", "deepslate_brick_stairs",
+            "deepslate_tile_stairs", "tuff_stairs", "polished_tuff_stairs", "tuff_brick_stairs", "brick_stairs", "mud_brick_stairs",
+            "resin_brick_stairs", "sandstone_stairs", "smooth_sandstone_stairs", "red_sandstone_stairs", "smooth_red_sandstone_stairs",
+            "prismarine_stairs", "prismarine_brick_stairs", "dark_prismarine_stairs", "nether_brick_stairs", "red_nether_brick_stairs",
+            "end_stone_brick_stairs", "purpur_stairs", "quartz_stairs", "smooth_quartz_stairs", "oak_fence", "spruce_fence",
+            "birch_fence", "jungle_fence", "acacia_fence", "dark_oak_fence", "mangrove_fence", "cherry_fence", "pale_oak_fence",
+            "bamboo_fence", "crimson_fence", "warped_fence", "nether_brick_fence", "oak_fence_gate", "spruce_fence_gate",
+            "birch_fence_gate", "jungle_fence_gate", "acacia_fence_gate", "dark_oak_fence_gate", "mangrove_fence_gate",
+            "cherry_fence_gate", "pale_oak_fence_gate", "bamboo_fence_gate", "crimson_fence_gate", "warped_fence_gate", "oak_door",
+            "spruce_door", "birch_door", "jungle_door", "acacia_door", "dark_oak_door", "mangrove_door", "cherry_door", "pale_oak_door",
+            "bamboo_door", "crimson_door", "warped_door", "iron_door", "oak_slab", "spruce_slab", "birch_slab", "jungle_slab",
+            "acacia_slab", "dark_oak_slab", "mangrove_slab", "cherry_slab", "pale_oak_slab", "bamboo_slab", "bamboo_mosaic_slab",
+            "crimson_slab", "warped_slab", "stone_slab", "smooth_stone_slab", "cobblestone_slab", "mossy_cobblestone_slab",
+            "stone_brick_slab", "mossy_stone_brick_slab", "granite_slab", "polished_granite_slab", "diorite_slab", "polished_diorite_slab",
+            "andesite_slab", "polished_andesite_slab", "cobbled_deepslate_slab", "polished_deepslate_slab", "deepslate_brick_slab",
+            "deepslate_tile_slab", "tuff_slab", "polished_tuff_slab", "tuff_brick_slab", "brick_slab", "mud_brick_slab", "resin_brick_slab",
+            "sandstone_slab", "cut_sandstone_slab", "smooth_sandstone_slab", "red_sandstone_slab", "cut_red_sandstone_slab",
+            "smooth_red_sandstone_slab", "prismarine_slab", "prismarine_brick_slab", "dark_prismarine_slab", "nether_brick_slab",
+            "red_nether_brick_slab", "end_stone_brick_slab", "purpur_slab", "quartz_slab", "smooth_quartz_slab", "petrified_oak_slab",
+            "dandelion", "poppy", "blue_orchid", "allium", "azure_bluet", "red_tulip", "orange_tulip", "white_tulip", "pink_tulip",
+            "oxeye_daisy", "cornflower", "lily_of_the_valley", "wither_rose", "sunflower", "lilac", "rose_bush", "peony", "torchflower",
+            "pitcher_plant", "closed_eyeblossom", "open_eyeblossom", "fern", "large_fern", "tall_grass", "dead_bush", "hanging_roots",
+            "prop_roots", "mangrove_roots", "muddy_mangrove_roots", "spore_blossom", "big_dripleaf", "moss_block", "moss_carpet",
+            "pale_moss_block", "pale_moss_carpet", "pale_hanging_moss", "crimson_roots", "warped_roots", "shroomlight", "nether_wart_block",
+            "warped_wart_block", "weeping_vines", "twisting_vines", "weeping_vines_plant", "twisting_vines_plant", "cave_vines",
+            "cave_vines_plant", "glow_lichen", "chorus_flower", "brain_coral_block", "bubble_coral_block", "fire_coral_block",
+            "horn_coral_block", "tube_coral_block", "dead_brain_coral_block", "dead_bubble_coral_block", "dead_fire_coral_block",
+            "dead_horn_coral_block", "dead_tube_coral_block", "wheat", "wheat_seeds", "carrot", "potato", "baked_potato",
+            "poisonous_potato", "beetroot", "beetroot_seeds", "sweet_berries", "glow_berries", "apple", "melon_slice", "pumpkin",
+            "carved_pumpkin", "jack_o_lantern", "red_mushroom", "brown_mushroom", "red_mushroom_block", "brown_mushroom_block",
+            "crimson_fungus", "warped_fungus", "nether_wart", "kelp", "dried_kelp", "seagrass", "sea_pickle", "cactus", "lily_pad",
+            "flower_pot", "raw_beef", "raw_chicken", "raw_mutton", "raw_porkchop", "raw_rabbit", "raw_cod", "raw_salmon", "cocoa_beans",
+            "cookie", "cake", "pumpkin_pie", "bowl", "melon_seeds", "pumpkin_seeds", "torchflower_seeds", "pitcher_pod",
+            "dried_kelp_block", "diamond", "emerald", "netherite_ingot", "netherite_scrap", "gold_ingot", "iron_ingot", "gold_nugget",
+            "iron_nugget", "rotten_flesh", "bone", "bone_meal", "string", "spider_eye", "fermented_spider_eye", "gunpowder", "ender_pearl",
+            "eye_of_ender", "blaze_rod", "blaze_powder", "ghast_tear", "slimeball", "magma_cream", "shulker_shell", "phantom_membrane",
+            "leather", "feather", "egg", "milk_bucket", "pufferfish", "salmon", "cod", "tropical_fish", "redstone", "redstone_torch",
+            "repeater", "comparator", "piston", "sticky_piston", "observer", "dispenser", "dropper", "hopper", "daylight_detector",
+            "redstone_lamp", "end_rod", "tripwire_hook", "lectern", "beehive", "bee_nest", "bookshelf", "crying_obsidian", "respawn_anchor",
+            "lodestone", "target", "creeper_head", "player_head", "skeleton_skull", "piglin_head", "dragon_head", "fishing_rod",
+            "carrot_on_a_stick", "warped_fungus_on_a_stick", "goat_horn", "trial_key", "ominous_trial_key", "mace", "trapped_chest",
+            "tnt", "chest", "ender_chest", "barrel", "shulker_box", "crafting_table", "furnace", "smoker", "blast_furnace",
+            "brewing_stand", "anvil", "chipped_anvil", "damaged_anvil", "enchanting_table", "loom", "smithing_table", "grindstone",
+            "stonecutter", "cartography_table", "fletching_table", "cauldron", "composter", "torch", "soul_torch", "lantern",
+            "soul_lantern", "glowstone", "sea_lantern", "ochre_froglight", "pearlescent_froglight", "verdant_froglight", "campfire",
+            "soul_campfire", "beacon", "conduit", "sponge", "wet_sponge", "bell", "note_block", "jukebox", "leather_helmet",
+            "leather_chestplate", "leather_leggings", "leather_boots", "chainmail_helmet", "chainmail_chestplate", "chainmail_leggings",
+            "chainmail_boots", "iron_helmet", "iron_chestplate", "iron_leggings", "iron_boots", "golden_helmet", "golden_chestplate",
+            "golden_leggings", "golden_boots", "diamond_helmet", "diamond_chestplate", "diamond_leggings", "diamond_boots",
+            "netherite_helmet", "netherite_chestplate", "netherite_leggings", "netherite_boots", "turtle_shell", "bow", "crossbow",
+            "arrow", "spectral_arrow", "shield", "trident", "flint_and_steel", "shears", "brush", "spyglass", "compass",
+            "recovery_compass", "clock", "lead", "name_tag", "minecart", "chest_minecart", "hopper_minecart", "tnt_minecart",
+            "furnace_minecart", "rail", "powered_rail", "detector_rail", "activator_rail", "elytra", "air", "barrier", "structure_block",
+            "command_block", "repeating_command_block", "chain_command_block", "jigsaw", "light", "structure_void", "trial_spawner",
+            "vault", "heavy_core", "spawner", "sniffer_egg", "turtle_egg", "armadillo_scute", "turtle_scute", "wolf_armor",
+            "dragon_egg", "dragon_breath", "firework_rocket", "firework_star", "totem_of_undying", "nether_star", "heart_of_the_sea",
+            "nautilus_shell", "prismarine_shard", "prismarine_crystals", "echo_shard", "disc_fragment", "music_disc_13", "music_disc_cat",
+            "music_disc_blocks", "music_disc_chirp", "music_disc_far", "music_disc_mall", "music_disc_mellohi", "music_disc_stal",
+            "music_disc_strad", "music_disc_ward", "music_disc_11", "music_disc_wait", "music_disc_otherside", "music_disc_relic",
+            "music_disc_5", "music_disc_pigstep", "music_disc_creator", "music_disc_precipice", "saddle", "horse_armor_leather",
+            "horse_armor_iron", "horse_armor_gold", "horse_armor_diamond", "potion", "splash_potion", "lingering_potion",
+            "enchanted_golden_apple", "golden_apple", "chorus_fruit", "popped_chorus_fruit", "honeycomb", "honeycomb_block",
+            "honey_bottle", "honey_block", "slime_block", "magma_block", "soul_sand", "soul_soil", "glowstone_dust", "nether_quartz",
+            "quartz_block", "chiseled_quartz_block", "quartz_pillars", "quartz_bricked", "netherrack", "nether_bricks",
+            "chiseled_nether_bricks", "cracked_nether_bricks", "red_nether_bricks", "basalt", "polished_basalt", "smooth_basalt",
+            "end_stone", "end_stone_bricks", "purpur_block", "purpur_pillar", "glistering_melon_slice", "golden_carrot", "rabbit_foot",
+            "rabbit_hide", "rabbit_stew", "mushroom_stew", "beetroot_soup", "suspicious_stew", "breeze_rod", "wind_charge",
+            "flow_pottery_sherd", "guster_pottery_sherd", "scrape_pottery_sherd", "murn_pottery_sherd", "danger_pottery_sherd",
+            "friend_pottery_sherd", "heart_pottery_sherd", "heartbreak_pottery_sherd", "howl_pottery_sherd", "miner_pottery_sherd",
+            "plenty_pottery_sherd", "prize_pottery_sherd", "sheaf_pottery_sherd", "shelter_pottery_sherd", "skull_pottery_sherd",
+            "snort_pottery_sherd", "arms_up_pottery_sherd", "blade_pottery_sherd", "brewer_pottery_sherd", "burn_pottery_sherd",
+            "explorer_pottery_sherd", "fox_pottery_sherd", "banner_pattern", "armor_trim_smithing_template", "painting", "item_frame",
+            "glow_item_frame", "armor_stand", "end_crystal", "experience_bottle", "enchanted_book", "written_book", "writable_book",
+            "knowledge_book", "map", "filled_map", "paper", "ink_sac", "glow_ink_sac", "charcoal", "sugar", "sugar_cane", "fire_charge",
+            "sculk", "sculk_vein", "sculk_catalyst", "sculk_shrieker", "sculk_sensor", "calibrated_sculk_sensor", "amethyst_shard",
+            "amethyst_block", "budding_amethyst", "small_amethyst_bud", "medium_amethyst_bud", "large_amethyst_bud", "amethyst_cluster",
+            "pointed_dripstone", "dripstone_block", "calcite", "tuff_bricks", "chiseled_tuff_bricks", "polished_tuff", "tuff_walls",
+            "chiseled_tuff", "mud", "packed_mud", "mud_bricks", "mud_brick_wall", "resin_clump", "resin_brick", "resin_block",
+            "resin_brick_wall", "crimson_hyphae", "warped_hyphae", "stripped_oak_log", "stripped_spruce_log", "stripped_birch_log",
+            "stripped_jungle_log", "stripped_acacia_log", "stripped_dark_oak_log", "stripped_mangrove_log", "stripped_cherry_log",
+            "stripped_pale_oak_log", "stripped_crimson_stem", "stripped_warped_stem", "stripped_oak_wood", "stripped_spruce_wood",
+            "stripped_birch_wood", "stripped_jungle_wood", "stripped_acacia_wood", "stripped_dark_oak_wood", "stripped_mangrove_wood",
+            "stripped_cherry_wood", "stripped_pale_oak_wood", "stripped_crimson_hyphae", "stripped_warped_hyphae", "oak_wood",
+            "spruce_wood", "birch_wood", "jungle_wood", "acacia_wood", "dark_oak_wood", "mangrove_wood", "cherry_wood", "pale_oak_wood",
+            "bamboo_block", "stripped_bamboo_block", "bamboo_plank", "bamboo_mosaic", "budding_creaking_heart", "creaking_heart",
+            "exposed_chiseled_copper", "weathered_chiseled_copper", "oxidized_chiseled_copper", "waxed_chiseled_copper",
+            "waxed_exposed_chiseled_copper", "waxed_weathered_chiseled_copper", "waxed_oxidized_chiseled_copper", "exposed_copper_grate",
+            "weathered_copper_grate", "oxidized_copper_grate", "waxed_copper_grate", "waxed_exposed_copper_grate",
+            "waxed_weathered_copper_grate", "waxed_oxidized_copper_grate", "exposed_copper_bulb", "weathered_copper_bulb",
+            "oxidized_copper_bulb", "waxed_copper_bulb", "waxed_exposed_copper_bulb", "waxed_weathered_copper_bulb",
+            "waxed_oxidized_copper_bulb", "exposed_copper_door", "weathered_copper_door", "oxidized_copper_door", "waxed_copper_door",
+            "waxed_exposed_copper_door", "waxed_weathered_copper_door", "waxed_oxidized_copper_door", "exposed_copper_trapdoor",
+            "weathered_copper_trapdoor", "oxidized_copper_trapdoor", "waxed_copper_trapdoor", "waxed_exposed_copper_trapdoor",
+            "waxed_weathered_copper_trapdoor", "waxed_oxidized_copper_trapdoor", "spruce_trapdoor", "birch_trapdoor", "jungle_trapdoor",
+            "acacia_trapdoor", "dark_oak_trapdoor", "mangrove_trapdoor", "cherry_trapdoor", "pale_oak_trapdoor", "bamboo_trapdoor",
+            "crimson_trapdoor", "warped_trapdoor", "iron_trapdoor", "oak_button", "spruce_button", "birch_button", "jungle_button",
+            "acacia_button", "dark_oak_button", "mangrove_button", "cherry_button", "pale_oak_button", "bamboo_button",
+            "crimson_button", "warped_button", "stone_button", "oak_pressure_plate", "spruce_pressure_plate", "birch_pressure_plate",
+            "jungle_pressure_plate", "acacia_pressure_plate", "dark_oak_pressure_plate", "mangrove_pressure_plate",
+            "cherry_pressure_plate", "pale_oak_pressure_plate", "bamboo_pressure_plate", "crimson_pressure_plate",
+            "warped_pressure_plate", "stone_pressure_plate", "light_weighted_pressure_plate", "heavy_weighted_pressure_plate",
+            "white_stained_glass", "white_stained_glass_pane", "red_stained_glass_pane", "orange_stained_glass_pane",
+            "yellow_stained_glass_pane", "lime_stained_glass_pane", "green_stained_glass_pane", "blue_stained_glass_pane",
+            "light_blue_stained_glass_pane", "cyan_stained_glass_pane", "purple_stained_glass_pane", "magenta_stained_glass_pane",
+            "pink_stained_glass_pane", "brown_stained_glass_pane", "light_grey_stained_glass_pane", "grey_stained_glass_pane",
+            "black_stained_glass_pane", "white_concrete", "white_concrete_powder", "white_wool", "white_carpet", "orange_carpet",
+            "magenta_carpet", "light_blue_carpet", "yellow_carpet", "lime_carpet", "pink_carpet", "grey_carpet", "light_grey_carpet",
+            "cyan_carpet", "purple_carpet", "blue_carpet", "brown_carpet", "green_carpet", "red_carpet", "black_carpet",
+            "white_shulker_box", "orange_shulker_box", "magenta_shulker_box", "light_blue_shulker_box", "yellow_shulker_box",
+            "lime_shulker_box", "pink_shulker_box", "grey_shulker_box", "light_grey_shulker_box", "cyan_shulker_box",
+            "purple_shulker_box", "blue_shulker_box", "brown_shulker_box", "green_shulker_box", "red_shulker_box", "black_shulker_box",
+            "white_terracotta", "orange_terracotta", "magenta_terracotta", "light_blue_terracotta", "yellow_terracotta",
+            "lime_terracotta", "pink_terracotta", "grey_terracotta", "light_grey_terracotta", "cyan_terracotta", "purple_terracotta",
+            "blue_terracotta", "brown_terracotta", "green_terracotta", "red_terracotta", "black_terracotta", "terracotta",
+            "white_glazed_terracotta", "orange_glazed_terracotta", "magenta_glazed_terracotta", "light_blue_glazed_terracotta",
+            "yellow_glazed_terracotta", "lime_glazed_terracotta", "pink_glazed_terracotta", "grey_glazed_terracotta",
+            "light_grey_glazed_terracotta", "cyan_glazed_terracotta", "purple_glazed_terracotta", "blue_glazed_terracotta",
+            "brown_glazed_terracotta", "green_glazed_terracotta", "red_glazed_terracotta", "black_glazed_terracotta", "white_banner",
+            "orange_banner", "magenta_banner", "light_blue_banner", "yellow_banner", "lime_banner", "pink_banner", "grey_banner",
+            "light_grey_banner", "cyan_banner", "purple_banner", "blue_banner", "brown_banner", "green_banner", "red_banner",
+            "black_banner", "white_candle", "orange_candle", "magenta_candle", "light_blue_candle", "yellow_candle", "lime_candle",
+            "pink_candle", "grey_candle", "light_grey_candle", "cyan_candle", "purple_candle", "blue_candle", "brown_candle",
+            "green_candle", "red_candle", "black_candle", "candle", "smooth_red_sandstone", "smooth_sandstone", "cut_red_sandstone",
+            "cut_sandstone", "chiseled_red_sandstone", "chiseled_sandstone", "red_sandstone_wall", "sandstone_wall",
+            "mossy_cobblestone_wall", "cobblestone_wall", "brick_wall", "prismarine_wall", "nether_brick_wall", "red_nether_brick_wall",
+            "end_stone_brick_wall", "stone_brick_wall", "mossy_stone_brick_wall", "granite_wall", "diorite_wall", "andesite_wall",
+            "deepslate_brick_wall", "deepslate_tile_wall", "cobbled_deepslate_wall", "polished_deepslate_wall", "glowing_hanging_sign",
+            "oak_sign", "spruce_sign", "birch_sign", "jungle_sign", "acacia_sign", "dark_oak_sign", "mangrove_sign", "cherry_sign",
+            "pale_oak_sign", "bamboo_sign", "crimson_sign", "warped_sign", "oak_hanging_sign", "spruce_hanging_sign",
+            "birch_hanging_sign", "jungle_hanging_sign", "acacia_hanging_sign", "dark_oak_hanging_sign", "mangrove_hanging_sign",
+            "cherry_hanging_sign", "pale_oak_hanging_sign", "bamboo_hanging_sign", "crimson_hanging_sign", "warped_hanging_sign",
+            "water_bucket", "lava_bucket", "powder_snow_bucket", "axolotl_bucket", "tadpole_bucket", "cod_bucket", "salmon_bucket",
+            "pufferfish_bucket", "tropical_fish_bucket", "bucket", "allay_spawn_egg", "armadillo_spawn_egg", "axolotl_spawn_egg",
+            "bat_spawn_egg", "bee_spawn_egg", "blaze_spawn_egg", "bogged_spawn_egg", "breeze_spawn_egg", "camel_spawn_egg",
+            "cat_spawn_egg", "cave_spider_spawn_egg", "chicken_spawn_egg", "cod_spawn_egg", "cow_spawn_egg", "creaking_spawn_egg",
+            "creeper_spawn_egg", "dolphin_spawn_egg", "donkey_spawn_egg", "drowned_spawn_egg", "elder_guardian_spawn_egg",
+            "ender_dragon_spawn_egg", "enderman_spawn_egg", "endermite_spawn_egg", "evoker_spawn_egg", "fox_spawn_egg", "frog_spawn_egg",
+            "ghast_spawn_egg", "glow_squid_spawn_egg", "goat_spawn_egg", "guardian_spawn_egg", "hoglin_spawn_egg", "horse_spawn_egg",
+            "husk_spawn_egg", "iron_golem_spawn_egg", "llama_spawn_egg", "magma_cube_spawn_egg", "mooshroom_spawn_egg", "mule_spawn_egg",
+            "ocelot_spawn_egg", "panda_spawn_egg", "parrot_spawn_egg", "phantom_spawn_egg", "pig_spawn_egg", "piglin_spawn_egg",
+            "piglin_brute_spawn_egg", "pillager_spawn_egg", "polar_bear_spawn_egg", "pufferfish_spawn_egg", "rabbit_spawn_egg",
+            "ravager_spawn_egg", "salmon_spawn_egg", "sheep_spawn_egg", "shulker_spawn_egg", "silverfish_spawn_egg", "skeleton_spawn_egg",
+            "skeleton_horse_spawn_egg", "slime_spawn_egg", "sniffer_spawn_egg", "snow_golem_spawn_egg", "spider_spawn_egg",
+            "squid_spawn_egg", "stray_spawn_egg", "strider_spawn_egg", "tadpole_spawn_egg", "trader_llama_spawn_egg",
+            "tropical_fish_spawn_egg", "turtle_spawn_egg", "vex_spawn_egg", "villager_spawn_egg", "vindicator_spawn_egg",
+            "wandering_trader_spawn_egg", "warden_spawn_egg", "witch_spawn_egg", "wither_spawn_egg", "wither_skeleton_spawn_egg",
+            "wolf_spawn_egg", "zoglin_spawn_egg", "zombie_spawn_egg", "zombie_horse_spawn_egg", "zombie_villager_spawn_egg",
+            "zombified_piglin_spawn_egg", "illusioner_spawn_egg", "acacia_planks_stairs", "acacia_planks_slab",
+            "ancient_city_generic_key", "angler_pottery_shard", "apple_gold", "archer_pottery_shard", "arrow_tipped",
+            "axolotl_in_a_bucket", "bamboo_block_stairs", "bamboo_block_slab", "banner_pattern_border", "banner_pattern_brick",
+            "banner_pattern_creeper", "banner_pattern_flow", "banner_pattern_flower", "banner_pattern_guster",
+            "banner_pattern_mojang", "banner_pattern_skull", "banner_pattern_globe", "banner_pattern_piglin", "birch_planks_stairs",
+            "birch_planks_slab", "block_of_amethyst", "block_of_copper", "block_of_diamond", "block_of_emerald", "block_of_gold",
+            "block_of_iron", "block_of_lapis_lazuli", "block_of_netherite", "block_of_quartz", "block_of_raw_copper",
+            "block_of_raw_gold", "block_of_raw_iron", "block_of_redstone", "block_of_resin", "blue_ice_stairs", "blue_ice_slab",
+            "boat_acacia", "boat_birch", "boat_cherry", "boat_dark_oak", "boat_jungle", "boat_mangrove", "boat_oak", "boat_pale_oak",
+            "boat_spruce", "bogged_arrow", "bolt_smithing_template", "bottle_o_enchanting", "brick_block",
+            "calibrated_sculk_sensor_active", "carved_pumpkin_lit", "cherry_planks_stairs", "cherry_planks_slab", "chest_boat_acacia",
+            "chest_boat_birch", "chest_boat_cherry", "chest_boat_dark_oak", "chest_boat_jungle", "chest_boat_mangrove", "chest_boat_oak",
+            "chest_boat_pale_oak", "chest_boat_spruce", "chiseled_bookshelf", "chiseled_nether_brick", "clay", "clay_ball", "clock_item",
+            "coast_smithing_template", "cod_in_a_bucket", "command_block_minecart", "compass_item", "cooked_beef", "cooked_chicken",
+            "cooked_cod", "cooked_mutton", "cooked_porkchop", "cooked_rabbit", "cooked_salmon", "copper_ingot_from_smelting",
+            "copper_ore_deepslate", "cracked_nether_brick", "crimson_planks_stairs", "crimson_planks_slab", "dark_oak_planks_stairs",
+            "dark_oak_planks_slab", "dead_brain_coral", "dead_brain_coral_fan", "dead_bubble_coral", "dead_bubble_coral_fan",
+            "dead_fire_coral", "dead_fire_coral_fan", "dead_horn_coral", "dead_horn_coral_fan", "dead_tube_coral", "dead_tube_coral_fan",
+            "debug_stick", "deepslate_bricks", "deepslate_tiles", "diamond_ore_deepslate", "dune_smithing_template",
+            "enchanted_book_item", "end_stone_stairs", "end_stone_slab", "eye_smithing_template", "flow_smithing_template",
+            "flow_pottery_shard", "fox_pottery_shard", "friend_pottery_shard", "gilded_blackstone_bricks", "glass_bottle",
+            "glistering_melon", "glow_item_frame_item", "gold_ingot_from_smelting", "gold_ore_deepslate", "guster_smithing_template",
+            "guster_pottery_shard", "heavy_weighted_pressure_plate_active", "hoglin_stable_chest", "host_smithing_template",
+            "infinitato", "infused_resin", "ink_bottle", "iron_ingot_from_smelting", "iron_ore_deepslate", "item_frame_item",
+            "jack_o_lantern_lit", "jungle_planks_stairs", "jungle_planks_slab", "lapis_lazuli_ore_deepslate",
+            "light_weighted_pressure_plate_active", "lingering_potion_item", "live_brain_coral", "live_brain_coral_fan",
+            "live_bubble_coral", "live_bubble_coral_fan", "live_fire_coral", "live_fire_coral_fan", "live_horn_coral",
+            "live_horn_coral_fan", "live_tube_coral", "live_tube_coral_fan", "long_grass", "magma", "mangrove_planks_stairs",
+            "mangrove_planks_slab", "map_item", "melon", "mourner_pottery_shard", "mud_brick_stairs_left", "mud_brick_stairs_right",
+            "mud_brick_stairs", "murn_pottery_shard", "mushroom_stem", "nether_brick", "nether_gold_ore", "nether_quartz_ore",
+            "nether_sprouts", "netherite_upgrade_template", "oak_planks_stairs", "oak_planks_slab", "ominous_bottle_i",
+            "ominous_bottle_ii", "ominous_bottle_iii", "ominous_bottle_iv", "ominous_bottle_v", "ominous_bottle", "packed_mud_stairs",
+            "packed_mud_slab", "pale_oak_planks_stairs", "pale_oak_planks_slab", "petrified_oak_stairs", "piglin_barter_chest",
+            "pitcher_flower", "poison_dart", "potion_item", "potted_cactus", "potted_dead_bush", "potted_dandelion", "potted_fern",
+            "potted_mangrove_propagule", "potted_poppy", "potted_red_mushroom", "potted_blue_orchid", "potted_allium",
+            "potted_azure_bluet", "potted_red_tulip", "potted_orange_tulip", "potted_white_tulip", "potted_pink_tulip",
+            "potted_oxeye_daisy", "potted_cornflower", "potted_lily_of_the_valley", "potted_wither_rose", "potted_closed_eyeblossom",
+            "potted_open_eyeblossom", "potted_oak_sapling", "potted_spruce_sapling", "potted_birch_sapling", "potted_jungle_sapling",
+            "potted_acacia_sapling", "potted_dark_oak_sapling", "potted_cherry_sapling", "potted_pale_oak_sapling", "potted_bamboo",
+            "potted_crimson_fungus", "potted_warped_fungus", "potted_crimson_roots", "potted_warped_roots", "potted_azalea",
+            "potted_flowering_azalea", "potted_brown_mushroom", "powder_snow", "prismarine_shard_item", "pufferfish_in_a_bucket",
+            "purpur_block_stairs", "purpur_block_slab", "quartz_block_stairs", "quartz_block_slab", "rabbit_stew_item", "raft_bamboo",
+            "raft_chest_bamboo", "raiser_smithing_template", "raw_gold", "raw_gold_block", "raw_iron", "raw_iron_block",
+            "recovery_compass_item", "redstone_ore_deepslate", "resin_brick_slab_top", "resin_brick_slab", "rib_smithing_template",
+            "salmon_in_a_bucket", "scaffolding", "sculk_shrieker_active", "sentry_smithing_template", "shaper_smithing_template",
+            "silence_smithing_template", "small_dripleaf", "smithing_table_functional", "snout_smithing_template",
+            "spire_smithing_template", "splash_potion_item", "spruce_planks_stairs", "spruce_planks_slab", "stone_button_active",
+            "stone_pressure_plate_active", "suspicious_gravel_item", "suspicious_sand_item", "tadpole_in_a_bucket",
+            "tide_smithing_template", "tipped_arrow", "tropical_fish_in_a_bucket", "tuff_brick_stairs_left", "tuff_brick_stairs_right",
+            "uninfused_resin", "vault_active", "vex_smithing_template", "vine", "vine_pale", "vine_weeping", "vine_twisting",
+            "ward_smithing_template", "warped_planks_stairs", "warped_planks_slab", "water_bottle", "wayfinder_smithing_template",
+            "weaponsmith_chest", "wild_smithing_template", "wither_skeleton_skull", "wood_button_active", "wood_pressure_plate_active",
+            "written_book_item", "zombie_head", "brick", "book", "flint", "coal", "lapis_lazuli", "polished_tuff_wall",
+            "tuff_brick_wall", "mud_brick_slab", "mangrove_propagule", "snow", "snow_block", "bone_block", "ominous_banner",
+            "dark_prismarine_wall", "prismarine_brick_wall", "prismarine", "prismarine_bricks", "dark_prismarine", "sandstone",
+            "red_sandstone", "sculk_shrieker", "bundle", "white_bundle", "orange_bundle", "magenta_bundle", "light_blue_bundle",
+            "yellow_bundle", "lime_bundle", "pink_bundle", "gray_bundle", "light_gray_bundle", "cyan_bundle", "purple_bundle",
+            "blue_bundle", "brown_bundle", "green_bundle", "red_bundle", "black_bundle", "crafter", "decorated_pot",
+            "chiseled_bookshelf_active", "calcite_stairs", "calcite_slab", "calcite_wall", "smooth_basalt_stairs",
+            "smooth_basalt_slab", "smooth_basalt_wall", "polished_granite_wall", "polished_diorite_wall", "polished_andesite_wall",
+            "cracked_deepslate_brick_slab", "cracked_deepslate_brick_stairs", "cracked_deepslate_brick_wall",
+            "cracked_deepslate_tile_slab", "cracked_deepslate_tile_stairs", "cracked_deepslate_tile_wall", "chiseled_nether_brick_slab",
+            "chiseled_nether_brick_stairs", "chiseled_nether_brick_wall", "cracked_nether_brick_slab", "cracked_nether_brick_stairs",
+            "cracked_nether_brick_wall", "chiseled_polished_blackstone_slab", "chiseled_polished_blackstone_stairs",
+            "chiseled_polished_blackstone_wall", "cracked_polished_blackstone_brick_slab", "cracked_polished_blackstone_brick_stairs",
+            "cracked_polished_blackstone_brick_wall", "chiseled_tuff_brick_slab", "chiseled_tuff_brick_stairs",
+            "chiseled_tuff_brick_wall", "chiseled_sandstone_slab", "chiseled_sandstone_stairs", "chiseled_sandstone_wall",
+            "chiseled_red_sandstone_slab", "chiseled_red_sandstone_stairs", "chiseled_red_sandstone_wall", "smooth_sandstone_stairs",
+            "smooth_sandstone_slab", "smooth_sandstone_wall", "smooth_red_sandstone_stairs", "smooth_red_sandstone_slab",
+            "smooth_red_sandstone_wall", "cut_sandstone_stairs", "cut_sandstone_wall", "cut_red_sandstone_stairs", "cut_red_sandstone_wall"
+        ];
+
+        // --- APP STATE ---
+        let items = [];
+        let filteredMatches = [];
+        let itemsToDisplay = [];
+        let selectedItem = null;
+        let soundEnabled = true;
+        let itemsPerPage = 32;
+        let currentPage = 1;
+        
+        // Command configuration options
+        let commandTarget = '@p';
+        let commandQuantity = 64;
+        let commandNbtGlow = false;
+
+        // Inventory hotbar state (9 cells maximum)
+        let hotbar = Array(9).fill(null);
+
+        // --- THEME & EMOJI MAPS ---
+        const EMOJI_MAP = {
+            'ore': '💎',
+            'log': '🪵',
+            'wood': '🪵',
+            'plank': '🪵',
+            'sapling': '🌱',
+            'leaves': '🍃',
+            'sword': '⚔️',
+            'pickaxe': '⛏️',
+            'axe': '🪓',
+            'shovel': '🥄',
+            'hoe': '🌾',
+            'egg': '🥚',
+            'bucket': '🪣',
+            'shulker': '🐚',
+            'helmet': '🪖',
+            'chestplate': '👕',
+            'leggings': '👖',
+            'boots': '🥾',
+            'potion': '🧪',
+            'stew': '🍲',
+            'banner': '🚩',
+            'wall': '🧱',
+            'stair': '🪜',
+            'slab': '➖',
+            'brick': '🧱',
+            'candle': '🕯️',
+            'bed': '🛏️',
+            'dye': '🎨',
+            'concrete': '🧱',
+            'wool': '🐑',
+            'coral': '🪸',
+            'glass': '🧼',
+            'chest': '📦',
+            'head': '💀',
+            'skull': '💀',
+            'dirt': '🟫',
+            'sand': '🟨',
+            'ice': '❄️',
+            'water': '💧',
+            'lava': '🔥',
+            'stone': '🪨',
+            'deepslate': '🪨',
+            'nether': '👹',
+            'copper': '🥉',
+            'iron': '🥈',
+            'gold': '👑',
+            'diamond': '💎',
+            'emerald': '💚',
+            'resin': '🍯',
+            'bundle': '🎒',
+            'pot': '🏺',
+            'crafter': '⚙️',
+            'eyeblossom': '🌸',
+            'moss': '🌿'
+        };
+
+        const COLOR_MAP = {
+            'ore': 'from-blue-500/20 to-teal-500/10 border-blue-500/30 text-blue-400',
+            'tool': 'from-amber-600/20 to-amber-900/10 border-amber-600/30 text-amber-400',
+            'armor': 'from-indigo-600/20 to-indigo-900/10 border-indigo-600/30 text-indigo-400',
+            'egg': 'from-rose-500/20 to-pink-500/10 border-rose-500/30 text-rose-400',
+            'colored': 'from-fuchsia-500/20 to-purple-500/10 border-fuchsia-500/30 text-fuchsia-400',
+            'pottery': 'from-yellow-600/20 to-amber-700/10 border-yellow-600/30 text-yellow-500',
+            'potion': 'from-pink-500/20 to-purple-600/10 border-pink-500/30 text-pink-400',
+            'nature': 'from-emerald-500/20 to-green-600/10 border-emerald-500/30 text-emerald-400',
+            'default': 'from-slate-800/80 to-slate-900 border-slate-700/60 text-slate-300'
+        };
+
+        // Synthesize retro audio notes using Web Audio API
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(70, audioCtx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.1);
+                } else if (type === 'copy') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+                    osc.frequency.setValueAtTime(480, audioCtx.currentTime + 0.08);
+                    osc.frequency.setValueAtTime(640, audioCtx.currentTime + 0.16);
+                    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.35);
+                } else if (type === 'pop') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.12);
+                    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.12);
+                } else if (type === 'clear') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.2);
+                }
+            } catch (e) {
+                console.warn('Audio Context failed to emit sound:', e);
+            }
+        }
+
+        // --- CASCADE TEXTURE HANDLER ---
+        // Attempts to load standard renders, falling back across repositories and directories, then to emojis
+        window.handleTextureError = function(imgElement, rawId) {
+            const currentSrc = imgElement.src;
+
+            // Step 1: If 1.21 items fails, try blocks directory
+            if (currentSrc.includes('items/')) {
+                imgElement.src = `https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20/blocks/${rawId}.png`;
+            } 
+            // Step 2: If 1.20 blocks fails, try alternative Prismarine source
+            else if (currentSrc.includes('1.20/blocks/')) {
+                imgElement.src = `https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.21/items/${rawId}.png`;
+            }
+            // Step 3: Hide image entirely and display the robust thematic fallback Emoji
+            else {
+                imgElement.classList.add('hidden');
+                const parent = imgElement.parentElement;
+                if (parent) {
+                    const fallbackSpan = parent.querySelector('.emoji-fallback');
+                    if (fallbackSpan) {
+                        fallbackSpan.classList.remove('hidden');
+                    }
+                }
+            }
+        }
+
+        // --- PARSING & INITIALIZATION ---
+        function initializeData() {
+            items = RAW_MINECRAFT_ITEMS.map((rawId, index) => {
+                const normalizedId = rawId.trim().replace(/\s+/g, '_');
+                
+                // Capitalize and remove underscore visually
+                let displayName = normalizedId;
+                if (normalizedId.includes('_')) {
+                    displayName = normalizedId
+                        .split('_')
+                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                        .join(' ');
+                } else {
+                    displayName = normalizedId.charAt(0).toUpperCase() + normalizedId.slice(1);
+                }
+
+                // Classify item group
+                let type = 'default';
+                let tag = 'BLOCK';
+                
+                if (normalizedId.includes('ore')) {
+                    type = 'ore';
+                    tag = 'ORE';
+                } else if (normalizedId.includes('sword') || normalizedId.includes('pickaxe') || normalizedId.includes('axe') || normalizedId.includes('shovel') || normalizedId.includes('hoe') || normalizedId === 'mace' || normalizedId === 'trident' || normalizedId === 'bow' || normalizedId === 'crossbow') {
+                    type = 'tool';
+                    tag = 'TOOL';
+                } else if (normalizedId.includes('helmet') || normalizedId.includes('chestplate') || normalizedId.includes('leggings') || normalizedId.includes('boots') || normalizedId.includes('shield') || normalizedId.includes('armor')) {
+                    type = 'armor';
+                    tag = 'ARMOR';
+                } else if (normalizedId.includes('egg')) {
+                    type = 'egg';
+                    tag = 'SPAWN EGG';
+                } else if (normalizedId.includes('stained') || normalizedId.includes('concrete') || normalizedId.includes('wool') || normalizedId.includes('carpet') || normalizedId.includes('terracotta') || normalizedId.includes('banner') || normalizedId.includes('dye') || normalizedId.includes('candle') || normalizedId.includes('bed') || normalizedId.includes('bundle')) {
+                    type = 'colored';
+                    tag = 'COLORED';
+                } else if (normalizedId.includes('pottery_shard') || normalizedId.includes('pottery_sherd') || normalizedId.includes('sherd') || normalizedId.includes('shard') || normalizedId.includes('pot')) {
+                    type = 'pottery';
+                    tag = 'POTTERY';
+                } else if (normalizedId.includes('potion')) {
+                    type = 'potion';
+                    tag = 'POTION';
+                } else if (normalizedId.includes('leaves') || normalizedId.includes('sapling') || normalizedId.includes('flower') || normalizedId.includes('roots') || normalizedId.includes('fungus') || normalizedId.includes('vines') || normalizedId.includes('prop') || normalizedId.includes('dandelion') || normalizedId.includes('poppy') || normalizedId.includes('allium') || normalizedId.includes('tulip') || normalizedId.includes('daisy') || normalizedId.includes('fern') || normalizedId.includes('grass') || normalizedId.includes('moss') || normalizedId.includes('eyeblossom')) {
+                    type = 'nature';
+                    tag = 'NATURE';
+                } else {
+                    const commonItems = ['ingot', 'nugget', 'scrap', 'dust', 'bone', 'string', 'eye', 'gunpowder', 'pearl', 'rod', 'powder', 'tear', 'slimeball', 'cream', 'shell', 'membrane', 'leather', 'feather', 'fish', 'stew', 'soup', 'seeds', 'pie', 'cookie', 'cake', 'apple', 'carrot', 'potato', 'beef', 'chicken', 'mutton', 'porkchop', 'rabbit', 'cod', 'salmon', 'beans', 'disc', 'fragment', 'bottle', 'book', 'map', 'paper', 'sac', 'sugar', 'charge', 'clump', 'key', 'bundle'];
+                    const isCommonItem = commonItems.some(keyword => normalizedId.includes(keyword));
+                    tag = isCommonItem ? 'ITEM' : 'BLOCK';
+                }
+
+                // Determine representative fallback emoji
+                let emoji = '📦';
+                for (const key of Object.keys(EMOJI_MAP)) {
+                    if (normalizedId.toLowerCase().includes(key)) {
+                        emoji = EMOJI_MAP[key];
+                        break;
+                    }
+                }
+
+                return {
+                    id: index,
+                    rawId: normalizedId,
+                    displayName,
+                    type,
+                    tag,
+                    emoji,
+                    colorClass: COLOR_MAP[type] || COLOR_MAP['default']
+                };
+            });
+
+            document.getElementById('total-count').textContent = items.length;
+        }
+
+        // --- DOM ELEMENTS ---
+        const searchInput = document.getElementById('search-input');
+        const clearSearchBtn = document.getElementById('clear-search');
+        const itemsGrid = document.getElementById('items-grid');
+        const currentCountSpan = document.getElementById('current-count');
+        const matchCountSpan = document.getElementById('match-count');
+        const sortSelect = document.getElementById('sort-select');
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        const filterTabs = document.querySelectorAll('.filter-tab');
+
+        // Audio controls
+        const soundToggle = document.getElementById('sound-toggle');
+        const soundStatus = document.getElementById('sound-status');
+        const soundIcon = document.getElementById('sound-icon');
+
+        // Inspector controls
+        const inspectorPlaceholder = document.getElementById('inspector-placeholder');
+        const inspectorContent = document.getElementById('inspector-content');
+        const inspectTagName = document.getElementById('inspect-tag');
+        const inspectDisplayName = document.getElementById('inspect-display-name');
+        const inspectRawId = document.getElementById('inspect-raw-id');
+        const inspectVisualBox = document.getElementById('inspect-visual-box');
+
+        // Give Command generator controls
+        const targetButtons = document.querySelectorAll('.target-btn');
+        const targetCustomTrigger = document.getElementById('target-custom-trigger');
+        const targetCustomInput = document.getElementById('target-custom-input');
+        const quantitySlider = document.getElementById('quantity-slider');
+        const quantityBadge = document.getElementById('quantity-badge');
+        const nbtCustomName = document.getElementById('nbt-custom-name');
+        const commandOutput = document.getElementById('command-output');
+        
+        // Action Buttons
+        const copyCommandBtn = document.getElementById('copy-command-btn');
+        const copyIdOnlyBtn = document.getElementById('copy-id-only-btn');
+        const addToHotbarBtn = document.getElementById('add-to-hotbar-btn');
+        const hotbarSlotsContainer = document.getElementById('hotbar-slots');
+        const clearHotbarBtn = document.getElementById('clear-hotbar-btn');
+
+        // --- SEARCH, FILTER & SORT LOGIC ---
+        let activeFilter = 'all';
+
+        function filterAndSortItems() {
+            const query = searchInput.value.toLowerCase().trim();
+
+            filteredMatches = items.filter(item => {
+                const matchesSearch = item.rawId.toLowerCase().includes(query) || item.displayName.toLowerCase().includes(query);
+                
+                if (!matchesSearch) return false;
+                if (activeFilter === 'all') return true;
+
+                switch(activeFilter) {
+                    case 'blocks':
+                        return item.tag === 'BLOCK' || item.tag === 'ORE';
+                    case 'tools':
+                        return item.tag === 'TOOL';
+                    case 'armor':
+                        return item.tag === 'ARMOR';
+                    case 'colored':
+                        return item.tag === 'COLORED';
+                    case 'eggs':
+                        return item.tag === 'SPAWN EGG';
+                    case 'pottery':
+                        return item.tag === 'POTTERY';
+                    default:
+                        return true;
+                }
+            });
+
+            const sortMode = sortSelect.value;
+            if (sortMode === 'az') {
+                filteredMatches.sort((a, b) => a.displayName.localeCompare(b.displayName));
+            } else if (sortMode === 'za') {
+                filteredMatches.sort((a, b) => b.displayName.localeCompare(a.displayName));
+            } else if (sortMode === 'length') {
+                filteredMatches.sort((a, b) => a.displayName.length - b.displayName.length);
+            }
+
+            currentPage = 1;
+            renderGrid(true);
+        }
+
+        // --- RENDER GRID FUNCTION ---
+        function renderGrid(reset = false) {
+            if (reset) {
+                itemsGrid.innerHTML = '';
+            }
+
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageItems = filteredMatches.slice(startIndex, endIndex);
+
+            if (filteredMatches.length === 0) {
+                itemsGrid.innerHTML = `
+                    <div class="col-span-full py-16 flex flex-col items-center justify-center text-center bg-slate-900/40 rounded-2xl border border-slate-800/80 animate-pulse">
+                        <span class="text-5xl mb-3">🔍</span>
+                        <p class="text-slate-300 font-bold">No Items Found</p>
+                        <p class="text-xs text-slate-500 mt-1 max-w-sm px-6">We couldn't find matches for "${searchInput.value}". Double check your spelling or choose a different category filter.</p>
+                    </div>
+                `;
+                loadMoreBtn.classList.add('hidden');
+                currentCountSpan.textContent = '0';
+                matchCountSpan.textContent = '0';
+                return;
+            }
+
+            pageItems.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `item-card cursor-pointer bg-gradient-to-br ${item.colorClass} p-4 rounded-xl border flex items-center gap-4 transition shadow-md hover:shadow-lg relative group overflow-hidden`;
+                
+                // Visual background accent
+                const decorativeBg = document.createElement('div');
+                decorativeBg.className = 'absolute -right-2 -bottom-2 text-6xl opacity-5 select-none pointer-events-none group-hover:scale-110 transition-transform duration-300';
+                decorativeBg.innerText = item.emoji;
+                card.appendChild(decorativeBg);
+
+                // Highlight matches
+                const query = searchInput.value.trim();
+                const boldedDisplayName = highlightText(item.displayName, query);
+                const boldedRawId = highlightText(item.rawId, query);
+
+                // Inner layout with image and emoji fallback
+                card.innerHTML += `
+                    <div class="w-12 h-12 rounded-lg bg-slate-950 flex items-center justify-center shadow-inner border border-slate-800/80 flex-shrink-0 z-10 overflow-hidden relative">
+                        <img 
+                            src="https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20/items/${item.rawId}.png" 
+                            alt="${item.displayName}"
+                            class="w-8 h-8 object-contain pixelated z-10"
+                            onerror="handleTextureError(this, '${item.rawId}')"
+                        />
+                        <span class="emoji-fallback absolute inset-0 flex items-center justify-center text-xl hidden z-0">${item.emoji}</span>
+                    </div>
+                    <div class="flex-1 min-w-0 z-10">
+                        <span class="text-[9px] font-extrabold uppercase tracking-widest text-slate-500 block mb-0.5">${item.tag}</span>
+                        <h4 class="font-bold text-slate-100 truncate text-sm leading-tight">${boldedDisplayName}</h4>
+                        <p class="text-[11px] text-emerald-400 mc-font truncate mt-0.5">${boldedRawId}</p>
+                    </div>
+                    <!-- Quick action copy key -->
+                    <button class="quick-copy-btn p-1.5 rounded bg-slate-950/80 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-emerald-400 z-20 opacity-0 group-hover:opacity-100 transition duration-150" title="Quick Copy Raw ID">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                        </svg>
+                    </button>
+                `;
+
+                // Card clicks to select
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('.quick-copy-btn')) {
+                        e.stopPropagation();
+                        copyToClipboard(item.rawId);
+                        showToast(`Copied Raw ID: <span class="mc-font text-emerald-400">${item.rawId}</span>`);
+                        playSound('copy');
+                        return;
+                    }
+                    selectItem(item);
+                    playSound('click');
+                });
+
+                itemsGrid.appendChild(card);
+            });
+
+            const currentDisplayed = Math.min(filteredMatches.length, currentPage * itemsPerPage);
+            currentCountSpan.textContent = currentDisplayed;
+            matchCountSpan.textContent = filteredMatches.length;
+
+            if (filteredMatches.length > currentDisplayed) {
+                loadMoreBtn.classList.remove('hidden');
+            } else {
+                loadMoreBtn.classList.add('hidden');
+            }
+        }
+
+        // --- HIGHLIGHT MATCH TEXT ---
+        function highlightText(text, query) {
+            if (!query) return text;
+            const regex = new RegExp(`(${escapeRegExp(query)})`, 'gi');
+            return text.replace(regex, '<mark class="bg-amber-400/20 text-amber-200 px-0.5 rounded">$1</mark>');
+        }
+
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        // --- CLIPBOARD WRITING ---
+        function copyToClipboard(text) {
+            const tempTextarea = document.createElement('textarea');
+            tempTextarea.value = text;
+            tempTextarea.style.position = 'absolute';
+            tempTextarea.style.left = '-9999px';
+            document.body.appendChild(tempTextarea);
+            tempTextarea.select();
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                console.error('Failed to copy', err);
+            }
+            document.body.removeChild(tempTextarea);
+        }
+
+        // --- CUSTOM TOAST NOTIFICATIONS ---
+        function showToast(htmlContent) {
+            const toast = document.createElement('div');
+            toast.className = 'flex items-center gap-3 bg-slate-900 border border-slate-700 p-4 rounded-xl shadow-2xl pointer-events-auto transition duration-300 transform translate-x-12 opacity-0 max-w-sm';
+            toast.innerHTML = `
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-lg">✨</div>
+                <div class="text-xs text-slate-300 font-medium leading-normal">${htmlContent}</div>
+            `;
+            const container = document.getElementById('toast-container');
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-x-12', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('translate-x-12', 'opacity-0');
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 3000);
+        }
+
+        // --- SELECTION & INSPECTOR ---
+        function selectItem(item) {
+            selectedItem = item;
+
+            inspectorPlaceholder.classList.add('hidden');
+            inspectorContent.classList.remove('hidden');
+            
+            inspectTagName.textContent = item.tag;
+            inspectDisplayName.textContent = item.displayName;
+            inspectRawId.textContent = `minecraft:${item.rawId}`;
+            
+            // Render inspect item visually using cascading fallback logic
+            inspectVisualBox.innerHTML = `
+                <img 
+                    src="https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20/items/${item.rawId}.png" 
+                    alt="${item.displayName}"
+                    class="w-10 h-10 object-contain pixelated z-10"
+                    onerror="handleTextureError(this, '${item.rawId}')"
+                />
+                <span class="emoji-fallback absolute inset-0 flex items-center justify-center text-2xl hidden z-0">${item.emoji}</span>
+            `;
+
+            updateCommandOutput();
+        }
+
+        // --- COMMAND OUTPUT CONSTRUCTOR ---
+        function updateCommandOutput() {
+            if (!selectedItem) return;
+
+            let nbtString = '';
+            if (commandNbtGlow) {
+                nbtString = `{Enchantments:[{id:"minecraft:unbreaking",lvl:1}],display:{Name:'{"text":"Enchanted ${selectedItem.displayName}","color":"gold","italic":false}'}}`;
+            }
+
+            const command = `/give ${commandTarget} minecraft:${selectedItem.rawId}${nbtString} ${commandQuantity}`;
+            commandOutput.textContent = command;
+        }
+
+        // --- SAVED HOTBAR SLOTS ---
+        function initializeHotbar() {
+            hotbarSlotsContainer.innerHTML = '';
+            for (let i = 0; i < 9; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'w-10 h-10 rounded bg-slate-900 border-2 border-slate-800 hover:border-indigo-500/50 flex items-center justify-center text-xl cursor-pointer relative group transition-all shadow-inner overflow-hidden';
+                cell.dataset.slotIndex = i;
+
+                const item = hotbar[i];
+                if (item) {
+                    cell.innerHTML = `
+                        <img 
+                            src="https://raw.githubusercontent.com/PrismarineJS/minecraft-assets/master/data/1.20/items/${item.rawId}.png" 
+                            alt="${item.displayName}"
+                            class="w-7 h-7 object-contain pixelated z-10"
+                            onerror="handleTextureError(this, '${item.rawId}')"
+                        />
+                        <span class="emoji-fallback absolute inset-0 flex items-center justify-center text-xl hidden z-0">${item.emoji}</span>
+                        <!-- Hover detail tooltip -->
+                        <div class="absolute bottom-11 left-1/2 -translate-x-1/2 bg-slate-950 text-slate-200 px-2 py-1 rounded text-[10px] font-bold border border-slate-700 whitespace-nowrap shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition z-35">
+                            ${item.displayName}
+                        </div>
+                        <!-- Delete tiny overlay tag -->
+                        <button class="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white text-[9px] font-extrabold flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-150 shadow z-40" onclick="removeFromHotbar(event, ${i})">
+                            ×
+                        </button>
+                    `;
+                    cell.classList.add('border-indigo-500', 'bg-slate-950');
+                } else {
+                    cell.innerHTML = `<span class="text-xs text-slate-700 font-extrabold mc-font">${i + 1}</span>`;
+                }
+
+                cell.addEventListener('click', (e) => {
+                    if (e.target.closest('button')) return;
+                    if (hotbar[i]) {
+                        selectItem(hotbar[i]);
+                        playSound('click');
+                    }
+                });
+
+                hotbarSlotsContainer.appendChild(cell);
+            }
+        }
+
+        window.removeFromHotbar = function(event, index) {
+            event.stopPropagation();
+            hotbar[index] = null;
+            saveHotbarToStorage();
+            initializeHotbar();
+            playSound('clear');
+            showToast('Item removed from Hotbar.');
+        };
+
+        function addToHotbar(item) {
+            if (!item) return;
+            const emptyIndex = hotbar.indexOf(null);
+            if (emptyIndex !== -1) {
+                hotbar[emptyIndex] = item;
+                saveHotbarToStorage();
+                initializeHotbar();
+                playSound('pop');
+                showToast(`Pinned <span class="text-indigo-400 font-bold">${item.displayName}</span> into Hotbar Slot #${emptyIndex + 1}!`);
+            } else {
+                hotbar = item;
+                saveHotbarToStorage();
+                initializeHotbar();
+                playSound('pop');
+                showToast(`Hotbar full! Replaced Slot #1 with <span class="text-indigo-400 font-bold">${item.displayName}</span>.`);
+            }
+        }
+
+        function saveHotbarToStorage() {
+            try {
+                localStorage.setItem('mc_item_hotbar_v2', JSON.stringify(hotbar));
+            } catch (e) {}
+        }
+
+        function loadHotbarFromStorage() {
+            try {
+                const stored = localStorage.getItem('mc_item_hotbar_v2');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (Array.isArray(parsed) && parsed.length === 9) {
+                        hotbar = parsed;
+                    }
+                }
+            } catch (e) {}
+        }
+
+        // --- EVENT LISTENERS & TRIGGERS ---
+        searchInput.addEventListener('input', () => {
+            if (searchInput.value.trim() !== '') {
+                clearSearchBtn.classList.remove('hidden');
+            } else {
+                clearSearchBtn.classList.add('hidden');
+            }
+            filterAndSortItems();
+        });
+
+        clearSearchBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            clearSearchBtn.classList.add('hidden');
+            filterAndSortItems();
+            searchInput.focus();
+            playSound('clear');
+        });
+
+        filterTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                filterTabs.forEach(t => {
+                    t.classList.remove('active', 'bg-emerald-500/10', 'border-emerald-500/30', 'text-emerald-400');
+                    t.classList.add('bg-slate-800', 'border-slate-700', 'text-slate-300');
+                });
+                
+                tab.classList.add('active', 'bg-emerald-500/10', 'border-emerald-500/30', 'text-emerald-400');
+                tab.classList.remove('bg-slate-800', 'border-slate-700', 'text-slate-300');
+                
+                activeFilter = tab.dataset.filter;
+                playSound('click');
+                filterAndSortItems();
+            });
+        });
+
+        sortSelect.addEventListener('change', () => {
+            playSound('click');
+            filterAndSortItems();
+        });
+
+        loadMoreBtn.addEventListener('click', () => {
+            currentPage++;
+            renderGrid(false);
+            playSound('click');
+        });
+
+        soundToggle.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            if (soundEnabled) {
+                soundStatus.textContent = 'ON';
+                soundStatus.className = 'text-emerald-400';
+                soundIcon.textContent = '🔊';
+                playSound('click');
+            } else {
+                soundStatus.textContent = 'OFF';
+                soundStatus.className = 'text-rose-400';
+                soundIcon.textContent = '🔇';
+            }
+        });
+
+        targetButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                targetButtons.forEach(b => {
+                    b.classList.remove('active', 'bg-emerald-500/10', 'border-emerald-500/30', 'text-emerald-400');
+                    b.classList.add('bg-slate-800', 'border-slate-700', 'text-slate-300');
+                });
+                targetCustomTrigger.classList.remove('bg-emerald-500/10', 'border-emerald-500/30', 'text-emerald-400');
+                targetCustomTrigger.classList.add('bg-slate-800', 'border-slate-700', 'text-slate-300');
+                targetCustomInput.classList.add('hidden');
+
+                btn.classList.add('active', 'bg-emerald-500/10', 'border-emerald-500/30', 'text-emerald-400');
+                btn.classList.remove('bg-slate-800', 'border-slate-700', 'text-slate-300');
+
+                commandTarget = btn.dataset.target;
+                playSound('click');
+                updateCommandOutput();
+            });
+        });
+
+        targetCustomTrigger.addEventListener('click', () => {
+            targetButtons.forEach(b => {
+                b.classList.remove('active', 'bg-emerald-500/10', 'border-emerald-500/30', 'text-emerald-400');
+                b.classList.add('bg-slate-800', 'border-slate-700', 'text-slate-300');
+            });
+            targetCustomTrigger.classList.add('active', 'bg-emerald-500/10', 'border-emerald-500/30', 'text-emerald-400');
+            targetCustomTrigger.classList.remove('bg-slate-800', 'border-slate-700', 'text-slate-300');
+            targetCustomInput.classList.remove('hidden');
+            targetCustomInput.focus();
+
+            commandTarget = targetCustomInput.value || 'PlayerName';
+            playSound('click');
+            updateCommandOutput();
+        });
+
+        targetCustomInput.addEventListener('input', () => {
+            commandTarget = targetCustomInput.value.trim() || 'PlayerName';
+            updateCommandOutput();
+        });
+
+        quantitySlider.addEventListener('input', () => {
+            commandQuantity = quantitySlider.value;
+            quantityBadge.textContent = commandQuantity;
+            updateCommandOutput();
+        });
+
+        nbtCustomName.addEventListener('change', () => {
+            commandNbtGlow = nbtCustomName.checked;
+            playSound('click');
+            updateCommandOutput();
+        });
+
+        copyCommandBtn.addEventListener('click', () => {
+            const command = commandOutput.textContent;
+            copyToClipboard(command);
+            playSound('copy');
+
+            copyCommandBtn.classList.add('copied-pop');
+            setTimeout(() => {
+                copyCommandBtn.classList.remove('copied-pop');
+            }, 300);
+
+            showToast('Command Copied! Press <kbd class="bg-slate-800 px-1 rounded">Ctrl+V</kbd> inside your Minecraft in-game console.');
+        });
+
+        copyIdOnlyBtn.addEventListener('click', () => {
+            if (!selectedItem) return;
+            copyToClipboard(selectedItem.rawId);
+            playSound('copy');
+            showToast(`Copied Raw ID: <span class="mc-font text-emerald-400">minecraft:${selectedItem.rawId}</span>`);
+        });
+
+        addToHotbarBtn.addEventListener('click', () => {
+            if (!selectedItem) return;
+            addToHotbar(selectedItem);
+        });
+
+        clearHotbarBtn.addEventListener('click', () => {
+            hotbar = Array(9).fill(null);
+            saveHotbarToStorage();
+            initializeHotbar();
+            playSound('clear');
+            showToast('Your Saved Hotbar is cleared.');
+        });
+
+        // --- BOOTSTRAP INITIALIZATION ---
+        window.addEventListener('DOMContentLoaded', () => {
+            initializeData();
+            loadHotbarFromStorage();
+            initializeHotbar();
+            filterAndSortItems();
+
+            if (items.length > 0) {
+                selectItem(items);
+            }
+        });
+    </script>
+</body>
+</html>
